@@ -2,86 +2,115 @@
 
 namespace App\Livewire;
 
-use App\Models\{Call, Item, ItemUsage};
-use App\Services\StockService;
-use Livewire\Attributes\{Layout, Title};
 use Livewire\Component;
+use Livewire\Attributes\Layout;
+use App\Models\Item;
+use App\Models\Call;
+use App\Models\ItemUsage;
+use App\Services\StockService;
+use Exception;
 
-#[Layout('layouts.app')]
-#[Title('Manajemen Stok')]
 class StockManager extends Component
 {
-    // tambah barang
-    public string $name = '';
-    public string $unit = 'pcs';
-    public $stock = 0;
-    public $minStock = 0;
+    public $name = '';
+    public $unit = '';
+    public $stock = '';
+    public $minStock = '';
 
-    // catat pemakaian
     public $useItem = '';
-    public $useQty = 1;
+    public $useQty = '';
     public $useCall = '';
-    public string $useNote = '';
+    public $useNote = '';
 
-    // terima barang
     public $inItem = '';
-    public $inQty = 1;
-    public string $inNote = '';
+    public $inQty = '';
+    public $inNote = '';
 
-    public function addItem(): void
+    public function addItem(StockService $stockService)
     {
-        $d = $this->validate([
-            'name'     => 'required|string|max:100',
-            'unit'     => 'required|string|max:20',
-            'stock'    => 'required|integer|min:0',
-            'minStock' => 'required|integer|min:0',
+        $this->validate([
+            'name'     => 'required|string|max:255',
+            'unit'     => 'required|string|max:50',
+            'stock'    => 'required|numeric|min:0',
+            'minStock' => 'required|numeric|min:0',
+        ], [
+            'name.required'     => 'Nama barang wajib diisi.',
+            'unit.required'     => 'Satuan wajib diisi.',
+            'stock.required'    => 'Stok awal wajib diisi.',
+            'minStock.required' => 'Minimum stok wajib diisi.',
         ]);
 
-        Item::create([
-            'name' => $d['name'], 'unit' => $d['unit'],
-            'stock' => $d['stock'], 'min_stock' => $d['minStock'],
-        ]);
+        try {
+            $stockService->create([
+                'name'      => $this->name,
+                'unit'      => $this->unit,
+                'stock'     => $this->stock,
+                'min_stock' => $this->minStock,
+            ]);
 
-        $this->reset('name', 'unit', 'stock', 'minStock');
-        session()->flash('ok', 'Barang ditambahkan.');
+            $this->reset(['name', 'unit', 'stock', 'minStock']);
+            session()->flash('ok', 'Jenis barang berhasil ditambahkan!');
+        } catch (Exception $e) {
+            $this->addError('name', 'Gagal menyimpan: ' . $e->getMessage());
+        }
     }
 
-    public function recordUsage(StockManager $svc): void
+    public function recordUsage(StockService $stockService)
     {
-        $d = $this->validate([
+        $this->validate([
             'useItem' => 'required|exists:items,id',
-            'useQty'  => 'required|integer|min:1',
-            'useCall' => 'nullable|exists:calls,id',
-            'useNote' => 'nullable|string|max:255',
+            'useQty'  => 'required|numeric|min:1',
+        ], [
+            'useItem.required' => 'Pilih barang yang digunakan.',
+            'useQty.required'  => 'Jumlah penggunaan wajib diisi.',
         ]);
 
-        $item = $svc->use((int) $d['useItem'], (int) $d['useQty'],
-            $d['useCall'] ? (int) $d['useCall'] : null, $d['useNote'] ?: null);
+        try {
+            $stockService->use(
+                (int) $this->useItem,
+                (int) $this->useQty,
+                $this->useCall ? (int) $this->useCall : null,
+                $this->useNote
+            );
 
-        session()->flash('ok', 'Pemakaian dicatat.' . ($item->needs_reorder ? " ⚠ {$item->name} perlu reorder!" : ''));
-        $this->reset('useItem', 'useQty', 'useCall', 'useNote');
+            $this->reset(['useItem', 'useQty', 'useCall', 'useNote']);
+            session()->flash('ok', 'Pemakaian barang berhasil dicatat!');
+        } catch (Exception $e) {
+            $this->addError('useItem', $e->getMessage());
+        }
     }
 
-    public function receiveStock(StockService $svc): void
+    public function receiveStock(StockService $stockService)
     {
-        $d = $this->validate([
+        $this->validate([
             'inItem' => 'required|exists:items,id',
-            'inQty'  => 'required|integer|min:1',
-            'inNote' => 'nullable|string|max:255',
+            'inQty'  => 'required|numeric|min:1',
+        ], [
+            'inItem.required' => 'Pilih barang yang diterima.',
+            'inQty.required'  => 'Jumlah penerimaan wajib diisi.',
         ]);
 
-        $svc->add((int) $d['inItem'], (int) $d['inQty'], $d['inNote'] ?: null);
+        try {
+            $stockService->add(
+                (int) $this->inItem,
+                (int) $this->inQty,
+                $this->inNote
+            );
 
-        session()->flash('ok', 'Stok ditambahkan.');
-        $this->reset('inItem', 'inQty', 'inNote');
+            $this->reset(['inItem', 'inQty', 'inNote']);
+            session()->flash('ok', 'Stok barang berhasil ditambah!');
+        } catch (Exception $e) {
+            $this->addError('inItem', 'Gagal menambah stok: ' . $e->getMessage());
+        }
     }
 
+    #[Layout('components.layouts.app')]
     public function render()
     {
         return view('livewire.stock-manager', [
-            'items'  => Item::orderBy('name')->get(),
-            'calls'  => Call::with('room')->latest('called_at')->limit(20)->get(),
-            'usages' => ItemUsage::with('item', 'call.room')->latest()->limit(15)->get(),
+            'items'  => Item::all(),
+            'calls'  => Call::with('room')->latest()->take(10)->get(),
+            'usages' => ItemUsage::with(['item', 'call.room'])->latest()->take(15)->get(),
         ]);
     }
 }

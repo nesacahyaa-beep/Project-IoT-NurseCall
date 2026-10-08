@@ -9,6 +9,16 @@ use RuntimeException;
 
 class StockService
 {
+    public function create(array $data): Item
+    {
+        return Item::create([
+            'name'      => $data['name'],
+            'unit'      => $data['unit'],
+            'stock'     => (int) $data['stock'],
+            'min_stock' => (int) $data['min_stock'],
+        ]);
+    }
+
     public function use(int $itemId, int $qty, ?int $callId = null, ?string $note = null): Item
     {
         return DB::transaction(function () use ($itemId, $qty, $callId, $note) {
@@ -23,6 +33,7 @@ class StockService
             ItemUsage::create([
                 'item_id'  => $item->id,
                 'call_id'  => $callId,
+                'type'     => 'out',
                 'quantity' => $qty,
                 'note'     => $note,
             ]);
@@ -33,9 +44,16 @@ class StockService
 
     public function add(int $itemId, int $qty, ?string $note = null): Item
     {
-        return DB::transaction(function () use ($itemId, $qty) {
+        return DB::transaction(function () use ($itemId, $qty, $note) {
             $item = Item::lockForUpdate()->findOrFail($itemId);
             $item->increment('stock', $qty);
+
+            ItemUsage::create([
+                'item_id'  => $item->id,
+                'type'     => 'in',
+                'quantity' => $qty,
+                'note'     => $note,
+            ]);
 
             return $item->refresh();
         });
