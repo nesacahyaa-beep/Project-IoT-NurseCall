@@ -1,7 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Livewire\DashboardNurseCall;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/', DashboardNurseCall::class);
