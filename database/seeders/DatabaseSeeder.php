@@ -21,5 +21,15 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
-    }
+
+            \App\Models\Room::insert([
+            ['code' => 'R101', 'name' => '101', 'created_at' => now(), 'updated_at' => now()],
+            ['code' => 'R102', 'name' => '102', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        \App\Models\Item::insert([
+            ['name' => 'Sarung tangan', 'unit' => 'box', 'stock' => 10, 'min_stock' => 3, 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Infus set',     'unit' => 'pcs', 'stock' => 20, 'min_stock' => 5, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        }
 }
