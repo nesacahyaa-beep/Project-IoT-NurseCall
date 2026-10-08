@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Room extends Model
 {
@@ -17,6 +18,11 @@ class Room extends Model
     public function readings() { return $this->hasMany(SensorReading::class); }
     public function activeCall() { return $this->hasOne(Call::class)->active()->latestOfMany(); }
 
+    public function latestReading(): HasOne
+    {
+        return $this->hasOne(SensorReading::class)->latestOfMany();
+    }
+
     public function getIsOfflineAttribute(): bool
     {
         return ! $this->last_seen_at
@@ -30,6 +36,16 @@ class Room extends Model
         $call = $this->activeCall;
         if (! $call) return 'normal';
         return $call->level === 'emergency' ? 'emergency' : 'calling';
+    }
+
+    public function getStatusThemeAttribute(): string
+    {
+        return ['normal' => 'success', 'calling' => 'warning', 'emergency' => 'danger', 'offline' => 'secondary'][$this->display_status];
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return ['normal' => 'Normal', 'calling' => 'Memanggil', 'emergency' => 'DARURAT', 'offline' => 'Offline'][$this->display_status];
     }
 
     public function getIsComfortableAttribute(): ?bool

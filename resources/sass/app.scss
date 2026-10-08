@@ -1,1 +1,7 @@
 @import "bootstrap/scss/bootstrap";
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .35; }
+}
+.blink { animation: blink 1s infinite; }

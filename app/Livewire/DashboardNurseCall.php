@@ -3,46 +3,65 @@
 namespace App\Livewire;
 
 use Livewire\Component;
+use Livewire\Attributes\Layout;
+use Illuminate\Support\Facades\Schema;
+use App\Models\Room;
+use App\Models\Call;
 
 class DashboardNurseCall extends Component
 {
-    public $rooms = [];
-    public $selectedRoomForModal = null;
-    public $itemUsed = '';
-    public $quantityUsed = 1;
-
-    public function mount()
+    public function finish(int $callId)
     {
-        // Data simulasi kamar & panggilan darurat
-        $this->rooms = [
-            ['id' => 101, 'name' => 'Kamar 101 (VVIP)', 'status' => 'NORMAL', 'patient' => 'Bpk. Budi', 'temp' => 24.5, 'humidity' => 55, 'call_active' => false, 'call_time' => null, 'priority' => 'NORMAL'],
-            ['id' => 102, 'name' => 'Kamar 102 (VIP)', 'status' => 'EMERGENCY', 'patient' => 'Ibu Siti', 'temp' => 26.1, 'humidity' => 60, 'call_active' => true, 'call_time' => '17:05', 'priority' => 'EMERGENCY'],
-            ['id' => 103, 'name' => 'Kamar 103 (Kelas 1)', 'status' => 'WARNING', 'patient' => 'An. Ahmad', 'temp' => 28.0, 'humidity' => 65, 'call_active' => true, 'call_time' => '17:08', 'priority' => 'URGENT'],
-            ['id' => 104, 'name' => 'Kamar 104 (Kelas 1)', 'status' => 'NORMAL', 'patient' => 'Bpk. Joko', 'temp' => 23.8, 'humidity' => 50, 'call_active' => false, 'call_time' => null, 'priority' => 'NORMAL'],
-        ];
-    }
-
-    public function openUsageModal($roomId)
-    {
-        $this->selectedRoomForModal = $roomId;
-    }
-
-    public function finishCallWithUsage()
-    {
-        foreach ($this->rooms as &$room) {
-            if ($room['id'] === $this->selectedRoomForModal) {
-                $room['call_active'] = false;
-                $room['status'] = 'NORMAL';
-                $room['priority'] = 'NORMAL';
+        try {
+            if (class_exists(Call::class) && Schema::hasTable('calls')) {
+                $call = Call::find($callId);
+                if ($call) {
+                    $call->update(['status' => 'finished']);
+                    if ($call->room) {
+                        $call->room->update(['state' => 'normal']);
+                    }
+                }
             }
+        } catch (\Throwable $e) {
+            // Abaikan error DB
         }
-        $this->selectedRoomForModal = null;
-        $this->itemUsed = '';
-        $this->quantityUsed = 1;
     }
 
+    #[Layout('layouts.app')]
     public function render()
     {
-        return view('components.dashboard-nurse-call');
+        $rooms = collect([]);
+        $activeCalls = collect([]);
+        $normal = 0;
+        $offline = 0;
+
+        try {
+            if (class_exists(Room::class) && Schema::hasTable('rooms')) {
+                $rooms = Room::all();
+                $normal = Room::where('state', 'normal')->orWhere('status', 'normal')->count();
+                $offline = Room::where('state', 'offline')->orWhere('status', 'offline')->count();
+            }
+        } catch (\Throwable $e) {
+            $rooms = collect([]);
+        }
+
+        try {
+            if (class_exists(Call::class) && Schema::hasTable('calls')) {
+                $query = Call::query();
+                if (method_exists(Call::class, 'room')) {
+                    $query->with('room');
+                }
+                $activeCalls = $query->whereIn('status', ['active', 'calling', 'emergency', 'panggilan', 'CALLING', 'EMERGENCY'])->get();
+            }
+        } catch (\Throwable $e) {
+            $activeCalls = collect([]);
+        }
+
+        return view('livewire.dashboard-nurse-call', [
+            'rooms' => $rooms,
+            'activeCalls' => $activeCalls,
+            'normal' => $normal,
+            'offline' => $offline,
+        ]);
     }
 }

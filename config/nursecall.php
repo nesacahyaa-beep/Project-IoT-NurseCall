@@ -1,6 +1,3 @@
-config/nursecall.php:
-
-php
 <?php
 return [
     'device_key'         => env('NURSECALL_DEVICE_KEY'),
