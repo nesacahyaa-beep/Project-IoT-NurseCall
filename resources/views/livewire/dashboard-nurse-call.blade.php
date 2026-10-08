@@ -28,6 +28,8 @@
         .nc-room { padding:16px; }
         .nc-room-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
         .nc-room-head strong { font-size:14px; }
+        .nc-room-link { text-decoration:none; color:inherit; transition:color 0.2s; }
+        .nc-room-link:hover strong { color:#2563eb; }
         .nc-tag { font-size:11px; font-weight:700; padding:3px 10px; border-radius:4px; }
         .nc-tag.normal { background:#dcfce7; color:#15803d; }
         .nc-tag.panggilan, .nc-tag.emergency, .nc-tag.calling { background:#fee2e2; color:#dc2626; }
@@ -130,7 +132,9 @@
                 @endphp
                 <div class="nc-card nc-room" wire:key="room-{{ $rId }}">
                     <div class="nc-room-head">
-                        <strong>{{ $rName }} @if($rType)({{ $rType }})@endif</strong>
+                        <a href="{{ route('room', $rId) }}" wire:navigate class="nc-room-link">
+                            <strong>{{ $rName }} @if($rType)({{ $rType }})@endif &rarr;</strong>
+                        </a>
                         <span class="nc-tag {{ $rState }}">{{ ucfirst($rState) }}</span>
                     </div>
                     <div class="nc-sensor">
