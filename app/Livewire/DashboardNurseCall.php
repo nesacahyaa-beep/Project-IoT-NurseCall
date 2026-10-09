@@ -4,64 +4,55 @@ namespace App\Livewire;
 
 use Livewire\Component;
 use Livewire\Attributes\Layout;
-use Illuminate\Support\Facades\Schema;
 use App\Models\Room;
 use App\Models\Call;
+use PhpMqtt\Client\MqttClient;
 
 class DashboardNurseCall extends Component
 {
     public function finish(int $callId)
     {
-        try {
-            if (class_exists(Call::class) && Schema::hasTable('calls')) {
-                $call = Call::find($callId);
-                if ($call) {
-                    $call->update(['status' => 'finished']);
-                    if ($call->room) {
-                        $call->room->update(['state' => 'normal']);
-                    }
-                }
+        $call = Call::with('room')->find($callId);
+
+        if ($call) {
+            // 1. Update status panggilan di database
+            $call->update([
+                'status'           => 'completed',
+                'completed_at'     => now(),
+                'response_seconds' => $call->called_at ? now()->diffInSeconds($call->called_at) : 0,
+            ]);
+
+            // 2. Kirim sinyal RESET ke ESP32 Wokwi
+            $roomCode = strtolower($call->room?->code ?? 'R101');
+            $topicCode = ($roomCode === 'r101') ? 'kamar101' : $roomCode;
+            $cmdTopic = "nursecall/{$topicCode}/cmd";
+
+            try {
+                $server   = env('MQTT_HOST', 'broker.hivemq.com');
+                $port     = (int) env('MQTT_PORT', 1883);
+                $clientId = 'laravel-publisher-' . uniqid();
+
+                $mqtt = new MqttClient($server, $port, $clientId);
+                $mqtt->connect();
+                $mqtt->publish($cmdTopic, json_encode(['cmd' => 'RESET']), 0);
+                $mqtt->disconnect();
+            } catch (\Throwable $e) {
+                // Abaikan jika broker MQTT terputus sementara
             }
-        } catch (\Throwable $e) {
-            // Abaikan error DB
         }
     }
 
     #[Layout('layouts.app')]
     public function render()
     {
-        $rooms = collect([]);
-        $activeCalls = collect([]);
-        $normal = 0;
-        $offline = 0;
-
-        try {
-            if (class_exists(Room::class) && Schema::hasTable('rooms')) {
-                $rooms = Room::all();
-                $normal = Room::where('state', 'normal')->orWhere('status', 'normal')->count();
-                $offline = Room::where('state', 'offline')->orWhere('status', 'offline')->count();
-            }
-        } catch (\Throwable $e) {
-            $rooms = collect([]);
-        }
-
-        try {
-            if (class_exists(Call::class) && Schema::hasTable('calls')) {
-                $query = Call::query();
-                if (method_exists(Call::class, 'room')) {
-                    $query->with('room');
-                }
-                $activeCalls = $query->whereIn('status', ['active', 'calling', 'emergency', 'panggilan', 'CALLING', 'EMERGENCY'])->get();
-            }
-        } catch (\Throwable $e) {
-            $activeCalls = collect([]);
-        }
+        $rooms = Room::all();
+        $activeCalls = Call::with('room')->active()->get();
 
         return view('livewire.dashboard-nurse-call', [
-            'rooms' => $rooms,
+            'rooms'       => $rooms,
             'activeCalls' => $activeCalls,
-            'normal' => $normal,
-            'offline' => $offline,
+            'normal'      => $rooms->filter(fn($r) => $r->display_status === 'normal')->count(),
+            'offline'     => $rooms->filter(fn($r) => $r->is_offline)->count(),
         ]);
     }
 }

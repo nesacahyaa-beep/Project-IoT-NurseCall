@@ -3,5 +3,6 @@
 use App\Providers\AppServiceProvider;
 
 return [
-    AppServiceProvider::class,
+    App\Providers\AppServiceProvider::class,
+    PhpMqtt\Laravel\MqttClientServiceProvider::class,
 ];
